@@ -134,6 +134,13 @@ func Errorf(format string, a ...interface{}) error {
 	return Wrap(fmt.Errorf(format, a...), 1)
 }
 
+// ErrorStack is a convenience function that returns an error's error message
+// and callstack of a non nil error. If the provided error has no callstack
+// one will be created to the call-site of this function.
+func ErrorStack(err error) string {
+	return Wrap(err, 1).(*Error).ErrorStack()
+}
+
 // Error returns the underlying error's message.
 func (err *Error) Error() string {
 

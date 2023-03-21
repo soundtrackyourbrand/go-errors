@@ -226,6 +226,17 @@ func libraryCode() error {
 	return nil
 }
 
+func TestStackError(t *testing.T) {
+
+	err := func() error {
+		return New("foo")
+	}()
+
+	if err.(*Error).ErrorStack() != ErrorStack(err) {
+		panic("err.ErrorStack() and ErrorStack(err) should be equal but differs")
+	}
+}
+
 func ExampleErrorf(x int) (int, error) {
 	if x%2 == 1 {
 		return 0, Errorf("can only halve even numbers, got %d", x)
