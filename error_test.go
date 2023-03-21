@@ -210,6 +210,20 @@ func TestWrapPrefixError(t *testing.T) {
 	}
 }
 
+func TestNilErrIsNil(t *testing.T) {
+	if err := foo(); err != nil {
+		panic("not nil")
+	}
+}
+
+func foo() error {
+	return Wrap(bar(), 0)
+}
+
+func bar() error {
+	return nil
+}
+
 func ExampleErrorf(x int) (int, error) {
 	if x%2 == 1 {
 		return 0, Errorf("can only halve even numbers, got %d", x)
