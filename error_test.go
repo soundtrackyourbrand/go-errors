@@ -22,7 +22,7 @@ func BenchmarkStackFormat(b *testing.B) {
 				}
 
 				e := Errorf("hi")
-				_ = string(e.Stack())
+				_ = string(e.(*Error).Stack())
 			}()
 
 			a()
@@ -63,14 +63,14 @@ func TestStackFormat(t *testing.T) {
 
 		e, expected := Errorf("hi"), callers()
 
-		bs := [][]uintptr{e.stack, expected}
+		bs := [][]uintptr{e.(*Error).stack, expected}
 
 		if err := compareStacks(bs[0], bs[1]); err != nil {
 			t.Errorf("Stack didn't match")
 			t.Errorf(err.Error())
 		}
 
-		stack := string(e.Stack())
+		stack := string(e.(*Error).Stack())
 
 		if !strings.Contains(stack, "a: b(5)") {
 			t.Errorf("Stack trace does not contain source line: 'a: b(5)'")
@@ -93,7 +93,7 @@ func TestSkipWorks(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		bs := [][]uintptr{Wrap("hi", 2).stack, callersSkip(2)}
+		bs := [][]uintptr{Wrap("hi", 2).(*Error).stack, callersSkip(2)}
 
 		if err := compareStacks(bs[0], bs[1]); err != nil {
 			t.Errorf("Stack didn't match")
@@ -106,19 +106,19 @@ func TestSkipWorks(t *testing.T) {
 
 func TestNew(t *testing.T) {
 
-	err := New("foo")
+	err := New("foo").(*Error)
 
 	if err.Error() != "foo" {
 		t.Errorf("Wrong message")
 	}
 
-	err = New(fmt.Errorf("foo"))
+	err = New(fmt.Errorf("foo")).(*Error)
 
 	if err.Error() != "foo" {
 		t.Errorf("Wrong message")
 	}
 
-	bs := [][]uintptr{New("foo").stack, callers()}
+	bs := [][]uintptr{New("foo").(*Error).stack, callers()}
 
 	if err := compareStacks(bs[0], bs[1]); err != nil {
 		t.Errorf("Stack didn't match")
@@ -190,7 +190,7 @@ func TestWrapPrefixError(t *testing.T) {
 		t.Errorf("Constructor with an error failed")
 	}
 
-	prefixed := WrapPrefix(e, "prefix", 0)
+	prefixed := WrapPrefix(e, "prefix", 0).(*Error)
 	original := e.(*Error)
 
 	if prefixed.Err != original.Err || !reflect.DeepEqual(prefixed.stack, original.stack) || !reflect.DeepEqual(prefixed.frames, original.frames) || prefixed.Error() != "prefix: prefix: hi" {
@@ -210,17 +210,19 @@ func TestWrapPrefixError(t *testing.T) {
 	}
 }
 
-func TestNilErrIsNil(t *testing.T) {
-	if err := foo(); err != nil {
-		panic("not nil")
+func TestWrappingNilEqualsNil(t *testing.T) {
+	if err := projectCode(); err != nil {
+		panic("nil was wrapped but result != nil")
 	}
 }
 
-func foo() error {
-	return Wrap(bar(), 0)
+// Simulates project code that calls library code and wraps any error
+func projectCode() error {
+	return Wrap(libraryCode(), 0)
 }
 
-func bar() error {
+// Simulates library code that returns some error that is not of type go-errors
+func libraryCode() error {
 	return nil
 }
 
