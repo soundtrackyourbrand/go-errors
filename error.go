@@ -68,7 +68,7 @@ type Error struct {
 // error then it will be used directly, if not, it will be passed to
 // fmt.Errorf("%v"). The stacktrace will point to the line of code that
 // called New.
-func New(e interface{}) *Error {
+func New(e interface{}) error {
 	var err error
 
 	switch e := e.(type) {
@@ -90,7 +90,19 @@ func New(e interface{}) *Error {
 // error then it will be used directly, if not, it will be passed to
 // fmt.Errorf("%v"). The skip parameter indicates how far up the stack
 // to start the stacktrace. 0 is from the current call, 1 from its caller, etc.
-func Wrap(e interface{}, skip int) *Error {
+// Wrapping nil returns nil.
+func Wrap(e interface{}, skip int) error {
+	return WrapPrefix(e, "", skip+1)
+}
+
+// WrapPrefix makes an Error from the given value. If that value is already an
+// error then it will be used directly, if not, it will be passed to
+// fmt.Errorf("%v"). The prefix parameter is used to add a prefix to the
+// error message when calling Error(). The skip parameter indicates how far
+// up the stack to start the stacktrace. 0 is from the current call,
+// 1 from its caller, etc.
+// Wrapping nil returns nil.
+func WrapPrefix(e interface{}, prefix string, skip int) error {
 	if e == nil {
 		return nil
 	}
@@ -99,7 +111,7 @@ func Wrap(e interface{}, skip int) *Error {
 
 	switch e := e.(type) {
 	case *Error:
-		return e
+		return e.withPrefix(prefix)
 	case error:
 		err = e
 	default:
@@ -109,41 +121,24 @@ func Wrap(e interface{}, skip int) *Error {
 	stack := make([]uintptr, MaxStackDepth)
 	length := runtime.Callers(2+skip, stack[:])
 	return &Error{
-		Err:   err,
-		stack: stack[:length],
-	}
-}
-
-// WrapPrefix makes an Error from the given value. If that value is already an
-// error then it will be used directly, if not, it will be passed to
-// fmt.Errorf("%v"). The prefix parameter is used to add a prefix to the
-// error message when calling Error(). The skip parameter indicates how far
-// up the stack to start the stacktrace. 0 is from the current call,
-// 1 from its caller, etc.
-func WrapPrefix(e interface{}, prefix string, skip int) *Error {
-	if e == nil {
-		return nil
-	}
-
-	err := Wrap(e, 1+skip)
-
-	if err.prefix != "" {
-		prefix = fmt.Sprintf("%s: %s", prefix, err.prefix)
-	}
-
-	return &Error{
-		Err:    err.Err,
-		stack:  err.stack,
+		Err:    err,
+		stack:  stack[:length],
 		prefix: prefix,
 	}
-
 }
 
 // Errorf creates a new error with the given message. You can use it
 // as a drop-in replacement for fmt.Errorf() to provide descriptive
 // errors in return values.
-func Errorf(format string, a ...interface{}) *Error {
+func Errorf(format string, a ...interface{}) error {
 	return Wrap(fmt.Errorf(format, a...), 1)
+}
+
+// ErrorStack is a convenience function that returns an error's error message
+// and callstack of a non nil error. If the provided error has no callstack
+// one will be created to the call-site of this function.
+func ErrorStack(err error) string {
+	return Wrap(err, 1).(*Error).ErrorStack()
 }
 
 // Error returns the underlying error's message.
@@ -206,4 +201,15 @@ func (err *Error) TypeName() string {
 // Return the wrapped error (implements api for As function).
 func (err *Error) Unwrap() error {
 	return err.Err
+}
+
+func (err *Error) withPrefix(prefix string) error {
+	if err.prefix == "" {
+		return err
+	}
+	return &Error{
+		Err:    err.Err,
+		stack:  err.stack,
+		prefix: fmt.Sprintf("%s: %s", prefix, err.prefix),
+	}
 }
